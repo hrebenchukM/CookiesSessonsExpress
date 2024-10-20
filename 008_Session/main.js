@@ -26,8 +26,8 @@ app.use('/', function(req, res){
     }       
     console.log(req.session.userName);
     // удаление кукиса
-    // delete req.session.userName;
-
+    delete req.session.userName;
+    
     res.end();
 });
 
