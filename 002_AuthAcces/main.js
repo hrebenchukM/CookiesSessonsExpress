@@ -1,3 +1,4 @@
+
 var express = require('express');
 var app = express();
 
@@ -15,18 +16,30 @@ var port = 8080;
 
 
 // создание хранилища для сессий 
-var sessionHandler = require('./js/session_handler');
-var store = sessionHandler.createStore();
-var config = sessionHandler.getConfig(); 
+//var sessionHandler = require('./js/session_handler');
+//var store = sessionHandler.createStore();
 
 
 
+// параметры соединения с бд
+var config = {
+	user: 'admin',           // пользователь базы данных
+	password: '12345',          // пароль пользователя 
+	server: 'LENOVO\\SQLEXPRESS',       // хост
+	database: 'ATB',          // имя бд
+	port: 1433,             // порт, на котором запущен sql server
+	  options: {
+		  encrypt: true,  // Использование SSL/TLS
+		  trustServerCertificate: true // Отключение проверки самоподписанного сертификата
+	  },
+ }
+
+ 
 // создание сессии 
 app.use(cookieParser());
 app.use(session({
     saveUninitialized: true,
-    secret: 'supersecret',
-    resave: false
+    secret: 'supersecret'
 }));
 
 // зарегистрированные пользователи, которые могут быть авторизованы
@@ -45,7 +58,7 @@ app.get('/', function (req, res) {
 
 app.post('/login',function (req, res) {
 
-	console.log(req.body);
+  console.log(req.body);
 
     let Login = req.body.Login;
     let Password = req.body.Password;
@@ -54,56 +67,57 @@ var connection = new mssql.ConnectionPool(config);
 
 
 
-	connection.connect(config,function (err) {
+  connection.connect(function (err) {
         if (err) {
             console.log("Error connecting to db:", err);
         } else {
             console.log("Connecting to db Ok!");
-        }
-		// транзакция - безопасная операция над бд с возможностью отката изменений в случае ошибки при выполнении запроса  
-		var transaction = new mssql.Transaction(connection);
+             // транзакция - безопасная операция над бд с возможностью отката изменений в случае ошибки при выполнении запроса  
+    var transaction = new mssql.Transaction(connection);
 
 
-		transaction.begin(function (err) {
-			var request = new mssql.Request(transaction);
-			request.input('Login', mssql.NVarChar(50), Login);
-			request.input('Password', mssql.NVarChar(50), Password);
+    transaction.begin(function (err) {
+      var request = new mssql.Request(transaction);
+      request.input('Login', mssql.NVarChar(50), Login);
+      request.input('Password', mssql.NVarChar(50), Password);
 
 
-			request.query(`
+      request.query(`
                 SELECT * 
                 FROM Admins 
                 WHERE Login = @Login AND Password = @Password
             `, function (err, data) {
 
-				if (err) {
-					console.log(err);
-					transaction.rollback(function (err) {
-						console.log('rollback successful');
-						res.send('transaction rollback successful');
-					});
-				} 
-				else {
-					transaction.commit(function (err) {
-							console.log('data commit success');
+        if (err) {
+          console.log(err);
+          transaction.rollback(function (err) {
+            console.log('rollback successful');
+            res.send('transaction rollback successful');
+          });
+        } 
+        else {
+          transaction.commit(function (err) {
+              console.log('data commit success');
 
 
-							var allItems = data.recordset;
-			
+              var allItems = data.recordset;
+      
 
-							if (allItems.length > 0) {
-                             req.session.Login = Login;
-						     console.log("Login succeeded: ", req.session.Login);
-                             res.send('Login successful: ' + 'sessionID: ' + req.session.id + '; user: ' + req.session.Login);
+              if (allItems.length > 0) {
+                req.session.Login = Login;
+                 console.log("Login succeeded: ", req.session.Login);
+                res.send('Login successful: ' + 'sessionID: ' + req.session.id + '; user: ' + req.session.Login);
    
-						}else {
-							       console.log("Login failed: ", req.body.Login)
-                                   res.status(401).send('Login error');
-						}
+            }else {
+                     console.log("Login failed: ", req.body.Login)
+                    res.status(401).send('Login error');
+            }
+         
                     });
                 }
             });
         });
+        }
 });
 
     // var foundUser;
